@@ -1,4 +1,4 @@
-# Facial Recognition Attendance System
+# FaceLog: Facial Recognition Attendance System
 
 A Offline-based desktop application for **offline attendance tracking using facial recognition**. The system detects faces via a pre-trained DNN and recognizes individuals using LBPH histograms. All data is stored locally in SQLite, attendance is exportable to CSV, and the app provides real-time feedback through a clean GUI.
 
@@ -286,6 +286,10 @@ python wipe_db_script.py
 This deletes the database, the `images/` and `exports/` folders, and the model file.
 
 ---
+
+### Primary Developers
+
+Kyle Delfin - Lead Developer
 
 ### Upcoming Improvements
 I plan to replace the current face detection model with a more robust, modern architecture (e.g., YOLO‑face or RetinaFace) to improve accuracy in challenging lighting and pose conditions. This upgrade will also bring:
