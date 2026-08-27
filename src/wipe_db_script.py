@@ -1,51 +1,27 @@
-import sqlite3
-import os
+"""Explicit development utility for removing locally generated FaceLog data."""
+
 import shutil
 
-"""Delete the images and exports folders and remove the trained face recognition model file."""
+from config import DATABASE_PATH, EXPORT_DIR, FACE_MODEL_PATH, IMAGE_DIR
 
-def wipe_database():
-    try:
-        conn = sqlite3.connect("database.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-        for table in tables:
-            table_name = table[0]
-            cursor.execute(f"DELETE FROM {table_name};")
-            print(f"Cleared table: {table_name}")
-        conn.commit()
-        conn.close()
-        print("Database tables cleared.")
-    except Exception as e:
-        print(f"Error clearing database: {e}")
 
-def delete_folders_and_model():
-    """Delete the images and exports folders and remove the trained face recognition model file."""
-    folders = ["images", "exports"]
-    for folder in folders:
-        if os.path.exists(folder):
-            try:
-                shutil.rmtree(folder)
-                print(f"Deleted folder: {folder}/")
-            except Exception as e:
-                print(f"Could not delete {folder}/: {e}")
-        else:
-            print(f"Folder {folder}/ does not exist – skipping.")
-
-    model_path = "models/face_model.yml"
-    if os.path.exists(model_path):
-        try:
-            os.remove(model_path)
-            print(f"Deleted model: {model_path}")
-        except Exception as e:
-            print(f"Could not delete {model_path}: {e}")
+def remove_path(path):
+    """Remove one known generated file or directory if it exists."""
+    if path.is_dir():
+        shutil.rmtree(path)
+        print(f"Removed directory: {path}")
+    elif path.exists():
+        path.unlink()
+        print(f"Removed file: {path}")
     else:
-        print("Model file not found – skipping.")
+        print(f"Nothing to remove: {path}")
+
+
+def reset_local_data():
+    """Delete attendance data, captured faces, exports, and the trained model."""
+    for path in (DATABASE_PATH, IMAGE_DIR, EXPORT_DIR, FACE_MODEL_PATH):
+        remove_path(path)
+
 
 if __name__ == "__main__":
-
-    # Run everything unconditionally
-    wipe_database()
-    delete_folders_and_model()
-    print("System fully reset. Run 'python main.py' to start fresh.")
+    reset_local_data()

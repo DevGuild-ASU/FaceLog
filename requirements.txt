@@ -1,0 +1,2 @@
+opencv-contrib-python>=4.5
+Pillow>=9.0

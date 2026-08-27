@@ -1,28 +1,26 @@
 import cv2
 import os
-from pathlib import Path
 import numpy as np
+from config import (
+    DNN_CAFFEMODEL_PATH,
+    DNN_CONFIDENCE,
+    DNN_PROTOTXT_PATH,
+    FACE_MODEL_PATH,
+    FACE_SIZE,
+    IMAGE_DIR,
+    RECOGNITION_CONFIDENCE,
+)
 from data.database import get_all_persons, add_person, get_person_name_by_id, get_person_id_by_name
-
-SRC_DIR = Path(__file__).resolve().parents[1]
-PROJECT_DIR = SRC_DIR.parent
-MODEL_PATH = SRC_DIR / "models" / "face_model.yml"
-IMAGE_DIR = PROJECT_DIR / "images"
-DNN_PROTOTXT = SRC_DIR / "models" / "dnn" / "deploy.prototxt"
-DNN_CAFFEMODEL = SRC_DIR / "models" / "dnn" / "res10_300x300_ssd_iter_140000_fp16.caffemodel"
-FACE_SIZE = (100, 100)
-CONFIDENCE_THRESHOLD = 70   # LBPH confidence (lower = more certain)
-DNN_CONFIDENCE = 0.7        # DNN detection confidence
 
 class FaceManager:
     def __init__(self):
-        self.face_net = cv2.dnn.readNetFromCaffe(str(DNN_PROTOTXT), str(DNN_CAFFEMODEL))
+        self.face_net = cv2.dnn.readNetFromCaffe(str(DNN_PROTOTXT_PATH), str(DNN_CAFFEMODEL_PATH))
         self.recognizer = cv2.face.LBPHFaceRecognizer_create()
         self.load_model()
 
     def load_model(self):
-        if os.path.exists(MODEL_PATH):
-            self.recognizer.read(str(MODEL_PATH))
+        if os.path.exists(FACE_MODEL_PATH):
+            self.recognizer.read(str(FACE_MODEL_PATH))
         else:
             self.recognizer = cv2.face.LBPHFaceRecognizer_create()
 
@@ -62,7 +60,7 @@ class FaceManager:
             label, confidence = self.recognizer.predict(face_roi)
         except cv2.error:
             return None, None
-        if confidence < CONFIDENCE_THRESHOLD:
+        if confidence < RECOGNITION_CONFIDENCE:
             name = get_person_name_by_id(label)
             return name, confidence
         else:
@@ -106,4 +104,4 @@ class FaceManager:
                 labels.append(pid)
         if images:
             self.recognizer.train(images, np.array(labels))
-            self.recognizer.save(str(MODEL_PATH))
+            self.recognizer.save(str(FACE_MODEL_PATH))
