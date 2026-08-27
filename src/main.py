@@ -1,6 +1,7 @@
 import tkinter as tk
 from app.attendance_app import AttendanceApp
 
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = AttendanceApp(root)

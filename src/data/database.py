@@ -1,13 +1,12 @@
 import sqlite3
 from datetime import datetime
+from config import DATABASE_PATH
 
 # Handles database connection, persistence, SQL Queries
 
-DB_NAME = "database.db"
-
 def get_connection():
     """Return a connection to the SQLite database."""
-    return sqlite3.connect(DB_NAME)
+    return sqlite3.connect(DATABASE_PATH)
 
 def init_db():
     """Create the required tables if they don't exist."""

@@ -1,307 +1,90 @@
-# FaceLog: Facial Recognition Attendance System
+# FaceLog
 
-A Offline-based desktop application for **offline attendance tracking using facial recognition**. The system detects faces via a pre-trained DNN and recognizes individuals using LBPH histograms. All data is stored locally in SQLite, attendance is exportable to CSV, and the app provides real-time feedback through a clean GUI.
+FaceLog is a local, offline desktop application for face-based attendance. Register a person from a webcam feed, start an attendance session, and FaceLog marks each recognized person present once. Attendance records are saved in SQLite and written to a CSV file for each session.
 
->  **Prototype Deployment** — This system was piloted by **two small businesses in Kalibo, Aklan** as a proof-of-concept attendance tracking solution.
+The project is intentionally a small **modular monolith**: it runs as one Python desktop process and has internal modules only where they make the code easier to understand and maintain.
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.5+-green)
-![Tkinter](https://img.shields.io/badge/Tkinter-built--in-orange)
-![SQLite](https://img.shields.io/badge/SQLite-embedded-lightgrey)
-![Status](https://img.shields.io/badge/status-working-brightgreen)
+## Features
 
----
+- Offline face registration using webcam samples.
+- DNN-based face detection and LBPH face recognition.
+- Named attendance sessions with one attendance record per person.
+- Clear live feedback for unknown faces, captured samples, successful attendance, and duplicate detections.
+- Local SQLite storage and per-session CSV exports.
 
-## Table of Contents
+## Architecture
 
-- [Architecture Overview](#architecture-overview)
-- [File Structure](#file-structure)
-- [Core Design Patterns](#core-design-patterns)
-- [Key Features](#key-features)
-- [Workflow & Lifecycle](#workflow--lifecycle)
-- [Code Highlights](#code-highlights)
-- [Setup & Installation](#setup--installation)
-- [Troubleshooting](#troubleshooting)
-- [Data Management](#data-management)
-- [Upcoming Improvements](#Upcoming-Improvements)
-- [License](#license)
-
----
-
-## Architecture Overview
-
-The application follows a modular, layered design with clear separation of concerns:
-
-```
-GUI Layer (Tkinter, ttk)
+```text
+Tkinter UI and workflow (src/app)
         |
-Business Logic (AttendanceApp, Registration, Session Management)
+        +--> Face processing (src/face) --> OpenCV DNN + LBPH model
         |
-Face Manager (DNN detection + LBPH recognition)
+        +--> Local storage (src/data) --> SQLite database
         |
-Data Layer (SQLite, CSV export)
-        |
-Image Storage / Model File
+        +--> Shared settings (src/config.py)
 ```
 
-- **GUI Layer** — Built with Tkinter; provides three tabs: Registration, Attendance, and About.
-- **Face Manager** — Encapsulates all OpenCV operations: face detection using an SSD-based DNN and recognition using LBPH.
-- **Database Layer** — SQLite stores persons, sessions, and attendance logs. All queries are abstracted in `database.py`.
-- **File Storage** — Face crops are saved as JPEGs under `images/<person_id>/`; the LBPH model is persisted as `face_model.yml`; attendance sessions are exported as CSV files.
-- **Background Threading** — Registration training runs in a separate thread to keep the interface responsive.
+All modules run in the same local process. The UI controls the user workflow, the face module owns OpenCV operations, and the data module owns SQL. This keeps the application simple to run and change without introducing networked components or unneeded abstractions.
 
----
+## Project layout
 
-## File Structure
-
-```
-project_root/
+```text
+src/
+├── main.py                 # Launches the desktop app
+├── config.py               # Paths and shared vision/application settings
 ├── app/
-│   ├── __init__.py
-│   ├── attendance_app.py    # Main application class (GUI + logic)
-│   └── about_app.py         # About tab content
-│
+│   ├── attendance_app.py   # UI, camera loop, registration and attendance workflow
+│   └── about_app.py        # About screen
 ├── face/
-│   ├── __init__.py
-│   └── face_manager.py      # DNN detection + LBPH recognition + training
-│
+│   └── face_manager.py     # Detection, recognition, registration and model training
 ├── data/
-│   ├── __init__.py
-│   └── database.py          # SQLite CRUD operations
-│
-├── models/                  # Pre-trained DNN files (must be downloaded)
-│   └── dnn/
-│       ├── deploy.prototxt
-│       └── res10_300x300_ssd_iter_140000_fp16.caffemodel
-│
-├── images/                  # Stored face crops (auto-created)
-├── exports/                 # CSV exports (auto-created)
-├── main.py                  # Application entry point
-├── wipe_db_script.py        # Utility to reset all data
-└── requirements.txt
+│   └── database.py         # SQLite schema and attendance/person/session queries
+├── models/dnn/             # Bundled DNN detector files
+└── wipe_db_script.py       # Explicit local-data reset utility
 ```
 
----
+Generated local data stays outside `src/`:
 
-## Core Design Patterns
+- `database.db` — people, sessions, and attendance records.
+- `images/` — captured face samples used to train the recognizer.
+- `exports/` — CSV files named `session_<id>.csv`.
+- `src/models/face_model.yml` — trained LBPH recognition model.
 
-### FaceManager – Encapsulation of Computer Vision Logic
+## Setup
 
-`FaceManager` centralises all face-related operations: loading the DNN network, detecting faces in a frame, extracting and resizing face ROIs, performing LBPH recognition, and training the model on newly registered persons. It manages the persistence of the LBPH model and loads it automatically at startup.
+Prerequisites: Python 3.8+ and a webcam.
 
-```python
-class FaceManager:
-    def __init__(self):
-        self.face_net = cv2.dnn.readNetFromCaffe(...)
-        self.recognizer = cv2.face.LBPHFaceRecognizer_create()
-        self.load_model()
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe src\main.py
 ```
 
-### Database Abstraction
+`opencv-contrib-python` is required because the application uses OpenCV's LBPH face recognizer.
 
-All SQLite operations are wrapped in simple functions in `database.py` (e.g., `add_person`, `log_attendance`, `get_all_sessions`). The module handles connection management using context managers, ensuring transactions are properly committed or rolled back.
+## How to use it
 
-### Threading for Responsive Registration
+1. Open **Register face**.
+2. Enter a unique name and select **Capture and register**.
+3. Keep the person’s face visible until the registration confirmation appears.
+4. Open **Take attendance**, enter a session name, and select **Start session**.
+5. Present a registered face. A green `marked present` label confirms a successful first check-in; later detections show `already marked`.
+6. Select **Stop session** when complete. The session remains in SQLite, and any marked attendance is in `exports/session_<id>.csv`.
 
-Registration involves capturing multiple face crops (~4 seconds) and then training the LBPH model. Training runs in a background thread while a timer updates the UI with elapsed time.
+## Development
 
-```python
-thread = threading.Thread(target=self._do_registration, daemon=True)
-thread.start()
-self._update_processing_timer()   # updates status label every 500ms
+Run a quick syntax check before committing:
+
+```powershell
+.\.venv\Scripts\python.exe -m py_compile src\main.py src\config.py src\app\attendance_app.py src\face\face_manager.py src\data\database.py
 ```
 
-### Polymorphism – Single Display Method
+For a full design and contribution guide, read [AGENTS.md](AGENTS.md).
 
-A single `display_frame()` method handles video feeds across both tabs, with configurable target dimensions.
+## Reset local data
 
----
+This command permanently removes the local database, captured images, CSV exports, and trained recognition model. Use it only when you intentionally want a clean start:
 
-## Key Features
-
-- **Face Registration** — Capture multiple face images while the user moves their head; train the LBPH model incrementally.
-- **Attendance Sessions** — Start a named session; recognised persons are automatically logged once per session.
-- **Real-time Feedback** — Displays detected faces with names/status on the video feed; a side panel logs every event.
-- **CSV Export** — Export any past session to a CSV file with full timestamps.
-- **Offline Operation** — No external network calls; all data stays on the local machine.
-- **Reset Functionality** — Wipe all persons, sessions, images, and the trained model with a single click.
-
----
-
-## Workflow & Lifecycle
-
-### Registration Flow
-
-1. User enters a name and clicks **Register Person**.
-2. The camera starts a 4-second capture phase; the user slowly moves their head while the system collects face crops (every 0.25 s).
-3. A progress bar and countdown are overlaid on the video feed.
-4. If at least 10 faces are captured, training runs in a background thread.
-5. On completion, the model is updated and the new person is stored in the database.
-
-### Attendance Session Flow
-
-1. User enters a session name and clicks **Start Attendance**.
-2. A session record is created in SQLite and an empty CSV is initialised.
-3. For each frame, faces are detected and recognised.
-4. If a recognised person is not yet logged in the session, their name and timestamp are appended to the CSV and the database.
-5. The video feedback shows:
-   - 🟢 **Green** — "Registered in session"
-   - 🟡 **Yellow** — "Already registered"
-   - 🔴 **Red** — Unknown face
-6. Click **Stop Attendance** to end the session; the CSV is finalised with start/end times.
-
----
-
-## Code Highlights
-
-### Face Detection with DNN
-
-The DNN expects a 300×300 blob; detections are filtered by a confidence threshold and bounding boxes are scaled back to the original frame dimensions.
-
-```python
-blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
-self.face_net.setInput(blob)
-detections = self.face_net.forward()
+```powershell
+.\.venv\Scripts\python.exe src\wipe_db_script.py
 ```
-
-### LBPH Recognition and Confidence
-
-LBPH returns a label and confidence score (lower = better). If confidence is below the threshold (default `70`), the person is considered recognised.
-
-```python
-label, confidence = self.recognizer.predict(face_roi)
-if confidence < CONFIDENCE_THRESHOLD:
-    name = get_person_name_by_id(label)
-```
-
-### Overlay Feedback During Registration
-
-A semi-transparent overlay displays the app name, status message, countdown, captured face count, and a progress bar.
-
-```python
-overlay = frame.copy()
-cv2.rectangle(overlay, (10, 10), (w - 10, 190), (0, 0, 0), -1)
-frame = cv2.addWeighted(overlay, 0.45, frame, 0.55, 0)
-```
-
-### CSV Export with Metadata
-
-Each export writes session metadata followed by a header row and all attendance records.
-
-```python
-writer.writerow(["Session ID", session_id])
-writer.writerow(["Session Name", session_name])
-writer.writerow(["Start Time", start_time])
-writer.writerow(["End Time", end_time])
-writer.writerow([])
-writer.writerow(["Name", "Timestamp"])
-writer.writerows(records)
-```
-
-### Thread-Safe Status Updates
-
-UI updates from the registration background thread are scheduled via `root.after()` to keep Tkinter responsive.
-
-```python
-def _update_processing_timer(self):
-    if not self._reg_timer_running:
-        return
-    elapsed = time.time() - self._reg_start_time
-    self.set_reg_status(f"Processing registration... {elapsed:.1f}s", fg="blue")
-    self.root.after(500, self._update_processing_timer)
-```
-
----
-
-## Setup & Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- A working webcam
-
-### 1. Clone the repository
-
-```bash
-git clone <repository-url>
-cd facial-recognition-attendance
-```
-
-### 2. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-**`requirements.txt`:**
-
-```
-opencv-python>=4.5
-opencv-contrib-python>=4.5   # required for LBPH
-Pillow>=9.0
-```
-
-### 3. Download the DNN model files
-
-The application uses the **res10_300x300_ssd_iter_140000_fp16** model. Download the following two files and place them in `models/dnn/`:
-
-- [`deploy.prototxt`](https://github.com/opencv/opencv/blob/master/samples/dnn/face_detector/deploy.prototxt)
-- [`res10_300x300_ssd_iter_140000_fp16.caffemodel`](https://github.com/opencv/opencv_3rdparty/raw/dnn_samples_face_detector_20170830/res10_300x300_ssd_iter_140000_fp16.caffemodel)
-
-### 4. Run the application
-
-```bash
-python main.py
-```
-
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| **Camera not opening** | Check that your webcam is connected and not in use by another application. |
-| **"No face crops captured" during registration** | Ensure good lighting and that your face is clearly visible. Move your head slowly side-to-side. |
-| **Recognition is poor** | Re-register the person under the same lighting conditions used during attendance. You can also adjust `CONFIDENCE_THRESHOLD` in `face_manager.py`. |
-| **Model files missing** | The app will crash if the DNN `.prototxt` or `.caffemodel` are not in the correct location. Download them as described above. |
-| **Performance issues** | DNN detection runs on CPU. Consider reducing video resolution (default is 800×600) in `attendance_app.py` if frame rate is too low. |
-
----
-
-## Data Management
-
-| Resource | Location |
-|----------|----------|
-| Database | `database.db` — persons, sessions, attendance |
-| Face images | `images/<person_id>/` — used for retraining the model |
-| Trained model | `models/face_model.yml` — LBPH recognizer state |
-| CSV exports | `exports/` — one CSV file per session |
-
-To reset everything completely and start fresh:
-
-```bash
-python wipe_db_script.py
-```
-
-This deletes the database, the `images/` and `exports/` folders, and the model file.
-
----
-
-### Primary Developers
-
-Kyle Delfin - Lead Developer
-
-### Upcoming Improvements
-I plan to replace the current face detection model with a more robust, modern architecture (e.g., YOLO‑face or RetinaFace) to improve accuracy in challenging lighting and pose conditions. This upgrade will also bring:
-
-Better handling of partial occlusions and side profiles.
-
-Faster inference with optional GPU support.
-
-Improved confidence scoring for more reliable attendance logging.
-
-Estimated timeline: Next major release within 2‑3 months.
-
-## License
-
-This project is provided for **educational and non-commercial use**.
